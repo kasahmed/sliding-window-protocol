@@ -29,6 +29,7 @@ public class Client {
 		String ipAddress = args[0];
 		System.out.println("IP: " + ipAddress + " port: " + port);
 		new Client(ipAddress, port);
+	
 		
 		
 	}

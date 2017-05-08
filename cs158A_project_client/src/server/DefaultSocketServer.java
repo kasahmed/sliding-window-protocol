@@ -5,11 +5,16 @@ import java.net.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import datastructure.CustomQueue;
+import frame.Frame;
 import protocol.Protocol4;
+import protocol.Protocol5;
 
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
 {
+	private CustomQueue<Frame> queue = new CustomQueue<Frame>(); 
+	
     private ObjectInputStream in;
     private ObjectOutputStream out;
 
@@ -44,9 +49,11 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     
     public boolean openConnection()
     {
+    	
     	try 
     	{
-    	    sock = new Socket(strHost, iPort);   
+    	    sock = new Socket(strHost, iPort);
+    	 
     	}
     	catch(IOException socketError)
     	 {
@@ -82,7 +89,37 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         
     	try
     	{
-    		new Protocol4(this);
+    		Thread t = new Thread(new Runnable(){
+
+    			
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					while(true)
+					{
+						if(Thread.interrupted())
+							break;
+						
+						try {
+							Frame f = (Frame)getInputStream();
+							if(f == null)
+								break;
+							queue.enqueue(f);
+						}
+						catch(Exception e)
+						{
+							postError(e.toString());
+							break;
+						}
+						
+					}
+				}
+    			
+    		});
+    		t.start();
+    		new Protocol5(this);
+    		t.interrupt();
+    		
     	}
     	catch(Exception e)
     	{
@@ -136,12 +173,15 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     {
         try 
         {
+        	
             out.writeObject(object);
-        } 
+            
+        }
         catch (IOException ex) 
         {
             Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
+        
     }
     
     public Object getInputStream() 
@@ -149,6 +189,11 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         try
         {
             return in.readObject();
+        }
+        catch (SocketTimeoutException e)
+        {
+        	System.out.println("Time_out");
+        	return null;
         }
         catch(IOException e)
         {
@@ -160,6 +205,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
             Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return null;
         }
+        
     }
     
     public int getInputStreamCode()
@@ -170,12 +216,12 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         }
         catch(IOException e)
         {
-            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return -1;
         }
         catch(ClassNotFoundException e)
         {
-            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return -1;
         }
     }
@@ -193,5 +239,42 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         
         System.err.println(TALKING + message);
     }
+
+	@Override
+	public Object getPacket() {
+		// TODO Auto-generated method stub
+		Thread curr = Thread.currentThread();
+		while(true)
+		{
+			if(curr.interrupted())
+				return null;
+			
+			try
+			{
+				Object packet = queue.dequeue();
+				if(packet != null)
+					return packet;
+			}
+			catch(InterruptedException e)
+			{
+				//e.printStackTrace();
+				return null;
+			}
+			
+		}
+		
+	}
+
+	@Override
+	public boolean hasPacket() {
+		// TODO Auto-generated method stub
+		return !queue.hasItem();
+	}
+
+	@Override
+	public boolean isConnected() {
+		// TODO Auto-generated method stub
+		return sock.isConnected();
+	}
 
 }// class DefaultSocketClient

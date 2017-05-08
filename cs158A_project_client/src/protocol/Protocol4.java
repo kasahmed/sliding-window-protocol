@@ -4,8 +4,11 @@ import server.Networking;
 import frame.Frame;
 
 public class Protocol4 implements Runnable{
-
-	final int MAX_TRANSMISSIONS = 10;
+	
+	final String MESSAGE = "Hello World";
+	int messageIndex = 0;
+	
+	final int MAX_TRANSMISSIONS = 30;
 	int transmissions= 0;
 	final int MAX_SEQ = 1;
 	int nextFrameToSend;
@@ -25,6 +28,7 @@ public class Protocol4 implements Runnable{
 		
 		nextFrameToSend = 0;
 		frameExpected = 0;
+		byte[] data = MESSAGE.getBytes();
 		
 		if(physicalLayer == null)
 		{
@@ -32,42 +36,62 @@ public class Protocol4 implements Runnable{
 			return;
 		}
 		
-		System.out.println("Starting Protocl4 (client");
-		physicalLayer.setOutputStream(new Frame(nextFrameToSend, 1 - frameExpected));
+		System.out.println("Starting Protocl4 (client)");
+		byte[] d = { data[messageIndex]};
+		physicalLayer.setOutputStream(new Frame(nextFrameToSend, 1 - frameExpected, d));
+		Thread t = this.setTimer(nextFrameToSend);
+		t.start();
 		//set timer
 		while(true)
 		{
-			Frame r = (Frame)physicalLayer.getInputStream();
+			Frame r = (Frame) physicalLayer.getPacket();//(Frame)physicalLayer.getInputStream();
 			
 			//check if frame is damaged
-			
-			if(r.getSeq() == frameExpected)
+			if(r != null)
 			{
-				frameExpected = inc(frameExpected);
-			}
+				if(r.getSeq() == frameExpected)
+				{
+					//send to network layer
+					frameExpected = inc(frameExpected);
+				}
 			
-			if(r.getAck() == nextFrameToSend)
-			{
-				nextFrameToSend = inc(nextFrameToSend);
-				//release timer
-			}
-			
-			new Runnable() {
+				if(r.getAck() == nextFrameToSend)
+				{
+					new Runnable() {
 
-				@Override
-				public void run() {
-					// TODO Auto-generated method stub
-					System.out.println(transmissions + ". " + r.toString());
+						@Override
+						public void run() {
+							// TODO Auto-generated method stub
+							System.out.println(transmissions + ". " + r.toString());
+						}
+						
+					}.run();
+					
+					nextFrameToSend = inc(nextFrameToSend);
+					messageIndex++;
+					t.interrupt();
+					//release timer
 				}
 				
-			}.run();
+				
+			}
 			
-			if(transmissions > MAX_TRANSMISSIONS)
+			
+			
+			
+			if(messageIndex > data.length)
 				break;
-			
-			transmissions += 1;
-			physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected));
+			if( (int)(Math.random()*100) <= 15)
+			{
+				transmissions += 1;
+				byte[] temp = { data[messageIndex]};
+				physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected, temp));
+			}
 			//set timer
+			t = this.setTimer(nextFrameToSend);
+			t.start();
+			
+		
 		}
 	}
 	
@@ -79,6 +103,29 @@ public class Protocol4 implements Runnable{
 		if(value > MAX_SEQ)
 			return 0;
 		return value;
+	}
+	
+	public Thread setTimer(int seq)
+	{
+		return new Thread(new Runnable(){
+
+			private Thread curr = Thread.currentThread();
+			private int s = seq;
+			@Override
+			public void run() {
+				// TODO Auto-generated method stub
+				try {
+					Thread.sleep(1000);
+					curr.interrupt();
+					
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					//e.printStackTrace();
+				}
+				
+			}
+			
+		});
 	}
 	
 	

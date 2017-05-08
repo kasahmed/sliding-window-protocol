@@ -5,13 +5,17 @@ import java.net.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import datastructure.CustomQueue;
 import frame.Frame;
 import protocol.Protocol4;
+import protocol.Protocol5;
 
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
 {
-    private ObjectInputStream in;
+	private CustomQueue<Frame> queue = new CustomQueue<Frame>(); 
+
+	private ObjectInputStream in;
     private ObjectOutputStream out;
 
     private Socket sock;
@@ -70,7 +74,36 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 
     	try
     	{
-    		new Protocol4(this);
+    		//new Protocol4(this);
+    		Thread t = new Thread(new Runnable(){
+
+    			
+				@Override
+				public void run() {
+					// TODO Auto-generated method stub
+					while(true)
+					{
+						if(Thread.interrupted())
+							break;
+						
+						try {
+							Frame f = (Frame)getInputStream();
+							if(f != null)
+								queue.enqueue(f);
+						}
+						catch(Exception e)
+						{
+							postError(e.toString());
+							break;
+						}
+						
+					}
+				}
+    			
+    		});
+    		t.start();
+    		new Protocol5(this);
+    		t.interrupt();
     	}
     	catch(Exception e)
     	{
@@ -149,6 +182,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
             return null;
         }
         
+        
     }
     
     public int getInputStreamCode()
@@ -182,5 +216,40 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         
         System.err.println(TALKING + message);
     }
+
+	@Override
+	public Object getPacket() {
+		// TODO Auto-generated method stub
+		Thread curr = Thread.currentThread();
+		while(true)
+		{
+			if(curr.interrupted())
+				return null;
+			
+			try
+			{
+				Object packet = queue.dequeue();
+				if(packet != null)
+					return packet;
+			}
+			catch(InterruptedException e)
+			{
+				//e.printStackTrace();
+				return null;
+			}
+			
+		}
+	}
+
+	@Override
+	public boolean hasPacket() {
+		// TODO Auto-generated method stub
+		return !queue.hasItem();
+	}
+	
+	public boolean isConnected()
+	{
+		return sock.isConnected();
+	}
 
 }// class DefaultSocketClient

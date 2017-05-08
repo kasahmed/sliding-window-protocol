@@ -7,7 +7,7 @@ public class Protocol4 implements Runnable{
 
 	final int MAX_TRANSMISSIONS = 10;
 	int transmissions= 0;
-	final int MAX_SEQ = 1;
+	final int MAX_SEQ = 3;
 	int nextFrameToSend;
 	int frameExpected;
 	Networking physicalLayer;
@@ -32,35 +32,32 @@ public class Protocol4 implements Runnable{
 			return;
 		}
 		
-		//physicalLayer.setOutputStream(new Frame(nextFrameToSend, 1 - frameExpected));
-		//set timer
-		System.out.println("Starting Protocl4 (Server");
+		
+		System.out.println("Starting Protocl4 (Server)");
 		while(true)
 		{
 			Frame r = (Frame)physicalLayer.getInputStream();
 			
 			//check if frame is damaged
 			
-			if(r.getSeq() == frameExpected)
-			{
-				frameExpected = inc(frameExpected);
-			}
-			
 			if(r.getAck() == nextFrameToSend)
 			{
+				new Runnable() {
+
+					@Override
+					public void run() {
+						// TODO Auto-generated method stub
+						System.out.println(transmissions + ". " + r.toString());
+					}
+					
+				}.run();
+				
 				nextFrameToSend = inc(nextFrameToSend);
 				//release timer
 			}
 			
-			new Runnable() {
-
-				@Override
-				public void run() {
-					// TODO Auto-generated method stub
-					System.out.println(transmissions + ". " + r.toString());
-				}
-				
-			}.run();
+			
+			
 			
 			
 			/*
@@ -68,11 +65,17 @@ public class Protocol4 implements Runnable{
 				break;
 			*/
 			transmissions += 1;
-			physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected));
+			physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected, r.getBuff()));
 			//set timer
 		}
 	}
 	
+	private boolean inBetween(int a, int b, int c)
+	{
+		if( ((a <= b) && (b < c)) || ((c < a) && (a <= b)) || ( (b < c) && (c < a)))
+			return true;
+		return false;
+	}
 	
 	public int inc(int value)
 	{

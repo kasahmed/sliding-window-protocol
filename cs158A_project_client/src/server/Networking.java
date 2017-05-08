@@ -9,4 +9,10 @@ public interface Networking {
     public Object getInputStream();
     
     public int getInputStreamCode();
+    
+    public Object getPacket();
+    
+    public boolean hasPacket();
+    
+    public boolean isConnected();
 }
