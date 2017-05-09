@@ -9,6 +9,7 @@ import datastructure.CustomQueue;
 import frame.Frame;
 import protocol.Protocol4;
 import protocol.Protocol5;
+import protocol.Protocol6;
 
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
@@ -21,6 +22,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     private Socket sock;
     private String strHost;
     private int iPort;
+    private boolean connected = false;
 
     
     public DefaultSocketServer(String strHost, int iPort) 
@@ -40,6 +42,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     {
        if (openConnection())
        {
+    	   connected = true;
     	   handleSession();
             closeSession();
        }
@@ -74,7 +77,9 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 
     	try
     	{
-    		//new Protocol4(this);
+    		int p = (int)this.getInputStream();
+    		int size = (int)this.getInputStream();
+    		
     		Thread t = new Thread(new Runnable(){
 
     			
@@ -88,8 +93,12 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 						
 						try {
 							Frame f = (Frame)getInputStream();
-							if(f != null)
-								queue.enqueue(f);
+							if(f == null)
+							{
+								connected = false;
+								break;
+							}
+							queue.enqueue(f);
 						}
 						catch(Exception e)
 						{
@@ -102,11 +111,14 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     			
     		});
     		t.start();
-    		new Protocol5(this);
+    		if(p != 6)
+    			new Protocol5(this, size);
     		t.interrupt();
     	}
     	catch(Exception e)
     	{
+    		e.printStackTrace();
+ 
     		return;
     	}
     	
@@ -149,7 +161,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         } 
         catch (IOException ex) 
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -157,11 +169,13 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     {
         try 
         {
+        	
             out.writeObject(object);
+            
         } 
         catch (IOException ex) 
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -173,12 +187,12 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         }
         catch(IOException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return null;
         }
         catch(ClassNotFoundException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return null;
         }
         
@@ -220,6 +234,25 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 	@Override
 	public Object getPacket() {
 		// TODO Auto-generated method stub
+		Object packet = null;
+
+		while(true)
+		{
+			try 
+			{
+				if(packet == null)
+					packet = queue.dequeue();
+				break;
+			} 
+			catch (InterruptedException e) 
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		return packet;
+		/*
 		Thread curr = Thread.currentThread();
 		while(true)
 		{
@@ -239,6 +272,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 			}
 			
 		}
+		*/
 	}
 
 	@Override
@@ -249,7 +283,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 	
 	public boolean isConnected()
 	{
-		return sock.isConnected();
+		return connected;
 	}
 
 }// class DefaultSocketClient

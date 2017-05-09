@@ -65,7 +65,7 @@ public class Protocol4 implements Runnable{
 				break;
 			*/
 			transmissions += 1;
-			physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected, r.getBuff()));
+			physicalLayer.setOutputStream(new Frame(Frame.DATA, nextFrameToSend,  1 - frameExpected, r.getBuff()));
 			//set timer
 		}
 	}

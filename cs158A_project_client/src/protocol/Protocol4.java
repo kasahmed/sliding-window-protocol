@@ -38,7 +38,7 @@ public class Protocol4 implements Runnable{
 		
 		System.out.println("Starting Protocl4 (client)");
 		byte[] d = { data[messageIndex]};
-		physicalLayer.setOutputStream(new Frame(nextFrameToSend, 1 - frameExpected, d));
+		physicalLayer.setOutputStream(new Frame(Frame.DATA, nextFrameToSend, 1 - frameExpected, d));
 		Thread t = this.setTimer(nextFrameToSend);
 		t.start();
 		//set timer
@@ -85,7 +85,7 @@ public class Protocol4 implements Runnable{
 			{
 				transmissions += 1;
 				byte[] temp = { data[messageIndex]};
-				physicalLayer.setOutputStream(new Frame(nextFrameToSend,  1 - frameExpected, temp));
+				physicalLayer.setOutputStream(new Frame(Frame.DATA, nextFrameToSend,  1 - frameExpected, temp));
 			}
 			//set timer
 			t = this.setTimer(nextFrameToSend);

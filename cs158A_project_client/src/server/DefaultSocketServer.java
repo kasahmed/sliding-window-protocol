@@ -2,13 +2,17 @@ package server;
 
 import java.io.*;
 import java.net.*;
+import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.sun.org.apache.bcel.internal.classfile.ClassFormatException;
 
 import datastructure.CustomQueue;
 import frame.Frame;
 import protocol.Protocol4;
 import protocol.Protocol5;
+import protocol.Protocol6;
 
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
@@ -89,6 +93,77 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         
     	try
     	{
+    		int protocol = 0;
+    		int windowSize = 1;
+    		int dropRate = 0;
+    		boolean gotProtocol = false;
+    		Scanner scan = new Scanner(System.in);
+    		
+    		while(!gotProtocol)
+    		{
+    			
+    			System.out.print("Enter the protocol you want to run(4,5,6): ");
+    			String input = scan.nextLine();
+    			try
+    			{
+    				protocol = Integer.parseInt(input);
+    				if(protocol == 4 || protocol == 5 || protocol == 6)
+    					gotProtocol = true;
+    			}
+    			catch(NumberFormatException e)
+    			{
+    				System.out.println("Input has to be an integer");
+    			}
+    		}
+    		
+    		if(protocol != 4)
+    		{
+    			boolean gotSize = false;
+    			while(!gotSize)
+    			{
+    				System.out.print("Enter the MAX_SEQ you want: ");
+        			String input = scan.nextLine();
+        			try
+        			{
+        				windowSize = Integer.parseInt(input);
+        				if(windowSize < 1)
+        					System.out.println("MAX_SEQ has to be greater then 1");
+        				else
+        					gotSize = true;
+        			}
+        			catch(NumberFormatException e)
+        			{
+        				System.out.println("MAX_SEQ has to be an Integer");
+        			}
+    			}
+    		}
+    		
+    		if(protocol != 6)
+    		{
+    			boolean gotRate = false;
+    			while(!gotRate)
+    			{
+    				System.out.print("Enter the drop rate: ");
+    				String input = scan.nextLine();
+        			try
+        			{
+        				dropRate = Integer.parseInt(input);
+        				if(dropRate < 0 || dropRate > 100)
+        					System.out.println("MAX_SEQ has to be greater then -1 and less then 100");
+        				else
+        					gotRate = true;
+        			}
+        			catch(NumberFormatException e)
+        			{
+        				System.out.println("Has to be an Integer");
+        			}
+    			}
+    		}
+    		
+    		this.setOutputStream(protocol);
+    		this.setOutputStream(windowSize);
+    		//this.setOutputStream(dropRate);
+    		
     		Thread t = new Thread(new Runnable(){
 
     			
@@ -117,12 +192,14 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     			
     		});
     		t.start();
-    		new Protocol5(this);
+    		if(protocol != 6)
+    			new Protocol5(this, windowSize, dropRate);
     		t.interrupt();
     		
     	}
     	catch(Exception e)
     	{
+    		e.printStackTrace();
     		return;
     	}
         
@@ -197,12 +274,12 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         }
         catch(IOException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return null;
         }
         catch(ClassNotFoundException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return null;
         }
         
@@ -243,6 +320,26 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 	@Override
 	public Object getPacket() {
 		// TODO Auto-generated method stub
+		Object packet = null;
+
+		while(true)
+		{
+			try 
+			{
+				if(packet == null)
+					packet = queue.dequeue();
+				break;
+			} 
+			catch (InterruptedException e) 
+			{
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		return packet;
+		
+		/*
 		Thread curr = Thread.currentThread();
 		while(true)
 		{
@@ -262,6 +359,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 			}
 			
 		}
+		*/
 		
 	}
 

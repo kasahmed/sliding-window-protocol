@@ -3,27 +3,28 @@ package protocol;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Arrays;
-
-import datastructure.CustomQueue;
 import frame.Frame;
+import layers.NetworkLayer;
 import server.Networking;
 
-public class Protocol5 implements Runnable{
+public class Protocol5 implements Runnable
+{
 	
-	final String MESSAGE = "Hello World";
-	int messageIndex = 0;
-	
-	final int MAX_TRANSMISSIONS = 30;
-	int transmissions= 0;
-	final int MAX_SEQ = 4;
+	int MAX_SEQ = 1;
+	int DROP_RATE;
 	int nextFrameToSend;
 	int frameExpected;
+	int nBuffered = 0;
 	Networking physicalLayer;
 	NetworkLayer networkLayer;
-	Thread[] timers = new Thread[MAX_SEQ + 1];
-	public Protocol5(Networking physicalLayer)
+	Thread[] timers; //= new Thread[MAX_SEQ + 1];
+	BuffData[] buffer;
+	
+	public Protocol5(Networking physicalLayer, int maxSeq, int dropRate)
 	{
+		this.MAX_SEQ = maxSeq;
+		this.DROP_RATE = dropRate;
+		timers = new Thread[MAX_SEQ + 1];
 		this.physicalLayer = physicalLayer;
 		
 		this.run();
@@ -32,17 +33,17 @@ public class Protocol5 implements Runnable{
 	private void sendData(int frameNum, int frameExpected, byte[] data)
 	{
 		
-		Frame s = new Frame(frameNum, (frameExpected + MAX_SEQ) % (MAX_SEQ + 1), data);
+		Frame s = new Frame(Frame.DATA, frameNum, (frameExpected + MAX_SEQ) % (MAX_SEQ + 1), data);
 
 		
-		if((int)(Math.random() * 100) <= 10)
+		if((int)(Math.random() * 100) <= (100 - DROP_RATE))
 		{
 			physicalLayer.setOutputStream(s);
-			//System.out.println("Sent Frame: " + s);
+			System.out.println("Sent Frame: " + s);
 		}
 		else
 		{
-			//System.out.println("dropped Frame: " + s);
+			System.out.println("dropped Frame: " + s);
 		}
 		setTimer(frameNum);
 	}
@@ -55,10 +56,10 @@ public class Protocol5 implements Runnable{
 		networkLayer = new NetworkLayer();
 		
 		
-		int nBuffered = 0;
+		nBuffered = 0;
 		int ackExpected = 0;
-		ArrayList<byte[]> buffer = new ArrayList<byte[]>();
 		
+		BuffData[] buffer = new BuffData[MAX_SEQ + 1];
 		
 		System.out.println("Starting Protocol5 (Client)");
 		while(true)
@@ -76,15 +77,24 @@ public class Protocol5 implements Runnable{
 				case 1 : //Network layer has frame
 					
 					byte[] data = networkLayer.getData();
-					if(buffer.size() > nextFrameToSend)
-						buffer.remove(nextFrameToSend);
-					buffer.add(nextFrameToSend, data);
+					buffer[nextFrameToSend] = new BuffData(data);
+					
 					sendData(nextFrameToSend, frameExpected, data);
 					nextFrameToSend = inc(nextFrameToSend);
 					nBuffered += 1;
 					break;
 				case 2: //Frame arrival
 					Frame r = (Frame)physicalLayer.getPacket();
+					
+					
+					if( !((int)(Math.random() * 100) <= (100 - DROP_RATE)))
+					{
+						System.out.println("Ack dropped: " + r);
+						break;
+					}
+					else
+						System.out.println("Ack Recieved: " + r);
+					
 					if(r.getSeq() == frameExpected)
 					{
 						frameExpected = inc(frameExpected);
@@ -109,10 +119,10 @@ public class Protocol5 implements Runnable{
 					break;
 				case 4: //timeout
 					nextFrameToSend = ackExpected;
-					//printBuffer(buffer);
+					
 					for(int i = 0; i < nBuffered; i++)
 					{
-						sendData(nextFrameToSend, frameExpected, buffer.get(nextFrameToSend));
+						sendData(nextFrameToSend, frameExpected, buffer[nextFrameToSend].getBuff());
 						nextFrameToSend = inc(nextFrameToSend);
 					}
 					break;
@@ -146,7 +156,7 @@ public class Protocol5 implements Runnable{
 	
 	public void setTimer(int seq)
 	{
-		//System.out.println("Setting timer for: " + seq);
+		
 		Thread currThread = Thread.currentThread();
 		Thread t =  new Thread(new Runnable(){
 
@@ -158,13 +168,12 @@ public class Protocol5 implements Runnable{
 				try {
 					Thread.sleep(1000);
 					curr.interrupt();
-					//System.out.println("timeout: " + seq);
+					
 					
 					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
-					//e.printStackTrace();
-					//System.out.println("Stopped: " + seq);
+					
 				}
 				
 			}
@@ -175,7 +184,7 @@ public class Protocol5 implements Runnable{
 			timers[seq] = t;
 		else
 		{
-			//System.out.println("Overriding other timer");
+			
 			
 			timers[seq].interrupt();
 			timers[seq] = null;
@@ -190,8 +199,12 @@ public class Protocol5 implements Runnable{
 	{
 		if(timers.length < seq)
 			return;
-		timers[seq].interrupt();
-		timers[seq] = null;
+		if(timers[seq] != null)
+		{
+			timers[seq].interrupt();
+			timers[seq] = null;
+		}
+		
 	}
 	
 	private int getEvent()
@@ -208,6 +221,8 @@ public class Protocol5 implements Runnable{
 				return 4;
 			else if(!physicalLayer.isConnected())
 				return -1;
+			else if(networkLayer.isFinished() && nBuffered == 0/*&& buffer[buffer.length] != null && frameExpected == 0*/)
+				return -1;
 			
 		}
 		
@@ -223,78 +238,20 @@ public class Protocol5 implements Runnable{
 	}
 	
 	
-	private class NetworkLayer extends Thread
+	
+	private class BuffData
 	{
-		final String MESSAGE = "Hello World";
-		int frameSize = 1; //in bits
-		private CustomQueue<byte[]> queue = new CustomQueue<byte[]>();
-		boolean isDisabled = false;
+		private byte[] data;
 		
-		public NetworkLayer()
+		public BuffData(byte[] data)
 		{
-			this.start();
+			this.data = data;
 		}
 		
-		
-		
-		@Override
-		public void run() {
-			// TODO Auto-generated method stub
-			//super.run();
-			
-			byte[] data = MESSAGE.getBytes();
-			int byteIndex = 0;
-			
-			while(byteIndex < data.length)
-			{
-				
-				if(byteIndex + 1 < data.length)
-				{
-					
-					byte[] dataToSend = {data[byteIndex++], data[byteIndex++]};
-					queue.enqueue(dataToSend);
-					
-				}
-				else
-				{
-					byte[] dataToSend = {data[byteIndex++]};
-					queue.enqueue(dataToSend);
-				}
-			}
-		}
-
-		
-
-		public boolean hasItem()
+		public byte[] getBuff()
 		{
-			return !queue.hasItem() && !isDisabled;
+			return data;
 		}
-		
-		public byte[] getData()
-		{
-			try 
-			{
-				byte[] dataToSend = queue.dequeue();
-				
-				return dataToSend;
-			} 
-			catch (InterruptedException e) 
-			{
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			return null;
-		}
-		public void disableLayer()
-		{
-			isDisabled = true;
-		}
-		
-		public void enableLayer()
-		{
-			isDisabled = false;
-		}
-		
 		
 		
 	}

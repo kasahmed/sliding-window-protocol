@@ -1,22 +1,26 @@
 package frame;
 
 import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.Arrays;
 
 public class Frame implements Serializable
 {
+	public final static String ACK = "ACK";
+	public final static String DATA = "DATA";
+	public final static String NAK = "NAK";
+	
 	private byte[] buff;
 	private final int seq;
 	private final int ack;
+	private final String kind;
 	
-	public Frame(int seq, int ack, byte[] data)
+	public Frame(String kind, int seq, int ack, byte[] data)
 	{
+		this.kind = kind;
 		this.seq = seq;
 		this.ack = ack;
 		buff = data;
+		
 	}
 	
 	public int getSeq()
@@ -33,13 +37,18 @@ public class Frame implements Serializable
 	{
 		return buff;
 	}
+	
+	public String getKind()
+	{
+		return kind;
+	}
 
 	@Override
 	public String toString() {
 		// TODO Auto-generated method stub
 		
 		String message = new String(buff,  Charset.forName("UTF-8"));//Arrays.toString(buff);
-		return "[Frame: seq: " + seq + " ack: " +  ack + " Message: " + message + "]";
+		return "[Frame: seq: " + seq + " ack: " +  ack + " Kind: " + kind + " Message: " + message + "]";
 	}
 	
 	
