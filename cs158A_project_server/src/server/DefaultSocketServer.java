@@ -14,6 +14,7 @@ import protocol.Protocol6;
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
 {
+	//queue to hold received frames
 	private CustomQueue<Frame> queue = new CustomQueue<Frame>(); 
 
 	private ObjectInputStream in;
@@ -49,6 +50,11 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
        
     }//run
     
+    /**
+     * Attempt to start the connection.
+     * @return true if connection is successful, false
+     * if connection has failed. 
+     */
     public boolean openConnection()
     {
     	try 
@@ -65,7 +71,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     	  return true;
     }
 
-    /*
+    /**
         Method handles server processes and sends information to client.
         Method also recives information from client and acts accordingly to 
         the clients response
@@ -102,7 +108,8 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 						}
 						catch(Exception e)
 						{
-							postError(e.toString());
+							//postError(e.toString());
+							connected = false;
 							break;
 						}
 						
@@ -113,6 +120,8 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     		t.start();
     		if(p != 6)
     			new Protocol5(this, size);
+    		else
+    			new Protocol6(this, size);
     		t.interrupt();
     	}
     	catch(Exception e)
@@ -125,6 +134,9 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
       
     }       
 
+    /**
+     * Ends communication
+     */
     public void closeSession()
     {
        try 
@@ -252,27 +264,6 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 		}
 		
 		return packet;
-		/*
-		Thread curr = Thread.currentThread();
-		while(true)
-		{
-			if(curr.interrupted())
-				return null;
-			
-			try
-			{
-				Object packet = queue.dequeue();
-				if(packet != null)
-					return packet;
-			}
-			catch(InterruptedException e)
-			{
-				//e.printStackTrace();
-				return null;
-			}
-			
-		}
-		*/
 	}
 
 	@Override

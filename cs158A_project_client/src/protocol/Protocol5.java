@@ -17,8 +17,12 @@ public class Protocol5 implements Runnable
 	int nBuffered = 0;
 	Networking physicalLayer;
 	NetworkLayer networkLayer;
-	Thread[] timers; //= new Thread[MAX_SEQ + 1];
+	Thread[] timers;
 	BuffData[] buffer;
+	
+	long executionTime = 0;
+	long startTime = 0;
+	long totalTime = 0;
 	
 	public Protocol5(Networking physicalLayer, int maxSeq, int dropRate)
 	{
@@ -40,6 +44,7 @@ public class Protocol5 implements Runnable
 		{
 			physicalLayer.setOutputStream(s);
 			System.out.println("Sent Frame: " + s);
+			
 		}
 		else
 		{
@@ -47,13 +52,14 @@ public class Protocol5 implements Runnable
 		}
 		setTimer(frameNum);
 	}
+	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		
 		nextFrameToSend = 0;
 		frameExpected = 0;
 		networkLayer = new NetworkLayer();
+		
 		
 		
 		nBuffered = 0;
@@ -62,16 +68,25 @@ public class Protocol5 implements Runnable
 		BuffData[] buffer = new BuffData[MAX_SEQ + 1];
 		
 		System.out.println("Starting Protocol5 (Client)");
+		
+		startTime = System.currentTimeMillis();
+		long endTime = 0;
+		
+		networkLayer.start();
 		while(true)
 		{
+			long waitStart = System.currentTimeMillis();
 			int event = getEvent();
-			
+			totalTime += System.currentTimeMillis() - waitStart;
 			if(event == -1)
 			{
+				endTime = System.currentTimeMillis();
 				for(int i = 0; i  < timers.length; i++)
 					stopTimer(i);
 				break;
 			}
+			
+			
 			switch(event)
 			{
 				case 1 : //Network layer has frame
@@ -84,8 +99,8 @@ public class Protocol5 implements Runnable
 					nBuffered += 1;
 					break;
 				case 2: //Frame arrival
-					Frame r = (Frame)physicalLayer.getPacket();
 					
+					Frame r = (Frame)physicalLayer.getPacket();
 					
 					if( !((int)(Math.random() * 100) <= (100 - DROP_RATE)))
 					{
@@ -134,6 +149,8 @@ public class Protocol5 implements Runnable
 				networkLayer.disableLayer();
 			
 		}
+		this.executionTime += (endTime - startTime);
+		System.out.println("Time took to complete protocol in milliseconds: " + executionTime + " Time in idle: " + totalTime);
 		
 		
 	}
@@ -154,6 +171,10 @@ public class Protocol5 implements Runnable
 		return value;
 	}
 	
+	/**
+	 * Creates and starts the timer for a specific frame
+	 * @param seq The seq number you want to set timer for. 
+	 */
 	public void setTimer(int seq)
 	{
 		
@@ -166,7 +187,7 @@ public class Protocol5 implements Runnable
 			public void run() {
 				// TODO Auto-generated method stub
 				try {
-					Thread.sleep(1000);
+					Thread.sleep(50);
 					curr.interrupt();
 					
 					
@@ -195,6 +216,10 @@ public class Protocol5 implements Runnable
 		timers[seq].start();
 	}
 	
+	/**
+	 * Stops a timer for a specific frame
+	 * @param seq frame number you want to remove timer for
+	 */
 	public void stopTimer(int seq)
 	{
 		if(timers.length < seq)
@@ -207,21 +232,27 @@ public class Protocol5 implements Runnable
 		
 	}
 	
+	/**
+	 * Returns an event depending on the flags that are raised. 
+	 * @return 1 if the network layer has data. 2 if physical layer has
+	 * data. 4 if a frame got timed out. -1 indicating that the protocol should
+	 * terminate itself. 
+	 */
 	private int getEvent()
 	{
 		
 		while(true)
 		{
 			
-			if(networkLayer.hasItem())
+			if(networkLayer.hasItem()) //Network layer has data
 				return 1;
-			else if(physicalLayer.hasPacket())
+			else if(physicalLayer.hasPacket()) // got something from receiver
 				return 2;
-			else if(Thread.currentThread().interrupted())
+			else if(Thread.currentThread().interrupted()) //timeout
 				return 4;
-			else if(!physicalLayer.isConnected())
+			else if(!physicalLayer.isConnected()) //checks status of connection
 				return -1;
-			else if(networkLayer.isFinished() && nBuffered == 0/*&& buffer[buffer.length] != null && frameExpected == 0*/)
+			else if(networkLayer.isFinished() && nBuffered == 0) //protocol finished
 				return -1;
 			
 		}

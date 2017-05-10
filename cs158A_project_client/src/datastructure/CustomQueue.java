@@ -19,7 +19,7 @@ public class CustomQueue<T> {
 		
 	}
 	
-	public synchronized boolean hasItem()
+	public synchronized boolean isEmpty()
 	{
 		return q.isEmpty();
 	}

@@ -3,6 +3,11 @@ package protocol;
 import server.Networking;
 import frame.Frame;
 
+/**
+ * This is old code. To execute protocol 4 use protocol 5 with MAX_SEQ = 1
+ * @author Kashan
+ *
+ */
 public class Protocol4 implements Runnable{
 	
 	final String MESSAGE = "Hello World";

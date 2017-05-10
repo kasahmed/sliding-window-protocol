@@ -26,7 +26,6 @@ public class Protocol5 implements Runnable{
 		
 		Frame s = new Frame(Frame.ACK, frameNum, (frameExpected + MAX_SEQ) % (MAX_SEQ + 1), data);
 		physicalLayer.setOutputStream(s);
-		//System.out.println("Send frame: " + s);
 		setTimer(frameNum);
 	}
 	@Override
@@ -123,6 +122,10 @@ public class Protocol5 implements Runnable{
 		return value;
 	}
 	
+	/**
+	 * Creates and starts the timer for a specific frame
+	 * @param seq The seq number you want to set timer for. 
+	 */
 	public void setTimer(int seq)
 	{
 		Thread currThread = Thread.currentThread();
@@ -163,6 +166,10 @@ public class Protocol5 implements Runnable{
 		timers[seq].start();
 	}
 	
+	/**
+	 * Stops a timer for a specific frame
+	 * @param seq frame number you want to remove timer for
+	 */
 	public void stopTimer(int seq)
 	{
 		if(timers.length < seq)
@@ -175,6 +182,12 @@ public class Protocol5 implements Runnable{
 		
 	}
 	
+	/**
+	 * Returns an event depending on the flags that are raised. 
+	 * @return 1 if the network layer has data. 2 if physical layer has
+	 * data. 4 if a frame got timed out. -1 indicating that the protocol should
+	 * terminate itself. 
+	 */
 	private int getEvent()
 	{
 		

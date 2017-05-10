@@ -5,18 +5,15 @@ import java.net.*;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import com.sun.org.apache.bcel.internal.classfile.ClassFormatException;
-
 import datastructure.CustomQueue;
 import frame.Frame;
-import protocol.Protocol4;
 import protocol.Protocol5;
 import protocol.Protocol6;
 
 
 public class DefaultSocketServer extends Thread implements SocketClientInterface, SocketClientConstants, Networking
 {
+	//queue to hold received frames
 	private CustomQueue<Frame> queue = new CustomQueue<Frame>(); 
 	
     private ObjectInputStream in;
@@ -40,6 +37,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         setHost(sock.getInetAddress().toString());
     }//constructor
 
+    @Override
     public void run()
     {
        if (openConnection())
@@ -51,6 +49,11 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
        
     }//run
     
+    /**
+     * Attempt to start the connection.
+     * @return true if connection is successful, false
+     * if connection has failed. 
+     */
     public boolean openConnection()
     {
     	
@@ -75,15 +78,15 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     	{
     	    if (DEBUG) 
                 System.err.println("Unable to obtain stream to/from " + strHost);
-    	    e.printStackTrace();
+    	    //e.printStackTrace();
     	    return false;
     	}
     	  return true;
     }
 
-    /*
+    /**
         Method handles server processes and sends information to client.
-        Method also recives information from client and acts accordingly to 
+        Method also receives information from client and acts accordingly to 
         the clients response
     */
     public void handleSession()
@@ -162,7 +165,6 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     		
     		this.setOutputStream(protocol);
     		this.setOutputStream(windowSize);
-    		//this.setOutputStream(dropRate);
     		
     		Thread t = new Thread(new Runnable(){
 
@@ -183,7 +185,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 						}
 						catch(Exception e)
 						{
-							postError(e.toString());
+							//postError(e.toString());
 							break;
 						}
 						
@@ -194,18 +196,23 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
     		t.start();
     		if(protocol != 6)
     			new Protocol5(this, windowSize, dropRate);
+    		else
+    			new Protocol6(this, windowSize/*, dropRate*/);
     		t.interrupt();
     		
     	}
     	catch(Exception e)
     	{
-    		e.printStackTrace();
+    		//e.printStackTrace();
     		return;
     	}
         
     
     }       
 
+    /**
+     * Ends communication
+     */
     public void closeSession()
     {
        try 
@@ -242,7 +249,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         } 
         catch (IOException ex) 
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
@@ -256,7 +263,7 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         }
         catch (IOException ex) 
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, ex);
         }
         
     }
@@ -293,12 +300,12 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
         }
         catch(IOException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return -1;
         }
         catch(ClassNotFoundException e)
         {
-            Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
+            //Logger.getLogger(ServerSocket.class.getName()).log(Level.SEVERE, null, e);
             return -1;
         }
     }
@@ -333,40 +340,18 @@ public class DefaultSocketServer extends Thread implements SocketClientInterface
 			catch (InterruptedException e) 
 			{
 				// TODO Auto-generated catch block
-				e.printStackTrace();
+				//e.printStackTrace();
 			}
 		}
 		
 		return packet;
-		
-		/*
-		Thread curr = Thread.currentThread();
-		while(true)
-		{
-			if(curr.interrupted())
-				return null;
-			
-			try
-			{
-				Object packet = queue.dequeue();
-				if(packet != null)
-					return packet;
-			}
-			catch(InterruptedException e)
-			{
-				//e.printStackTrace();
-				return null;
-			}
-			
-		}
-		*/
 		
 	}
 
 	@Override
 	public boolean hasPacket() {
 		// TODO Auto-generated method stub
-		return !queue.hasItem();
+		return !queue.isEmpty();
 	}
 
 	@Override

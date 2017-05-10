@@ -10,23 +10,33 @@ import server.Networking;
 
 public class Protocol6 implements Runnable{
 
-	final int MAX_SEQ = 3;
-	final int BUFF_SIZE = ((MAX_SEQ + 1) / 2);
+	int MAX_SEQ = 3;
+	int BUFF_SIZE = ((MAX_SEQ + 1) / 2);
 	
 	
 	int nextFrameToSend;
 	int frameExpected;
 	int oldestFrame = MAX_SEQ + 1;
+	int nBuffered = 0;
 	boolean noNak = true;
 	Networking physicalLayer;
 	NetworkLayer networkLayer;
-	Thread[] timers = new Thread[MAX_SEQ + 1];
+	Thread[] timers;
 	Thread ackTimer;
 	
 	CustomQueue<Integer> timeouts = new CustomQueue<Integer>();
 	
-	public Protocol6(Networking physicalLayer)
+	long executionTime = 0;
+	long startTime = 0;
+	long totalTime = 0;
+	
+	
+	public Protocol6(Networking physicalLayer, int maxSeq)
 	{
+		this.MAX_SEQ = maxSeq;
+		BUFF_SIZE = ((MAX_SEQ + 1) / 2);
+		oldestFrame = MAX_SEQ + 1;
+		timers = new Thread[MAX_SEQ + 1];
 		this.physicalLayer = physicalLayer;
 		
 		this.run();
@@ -65,7 +75,7 @@ public class Protocol6 implements Runnable{
 		
 		int fe = (this.frameExpected + MAX_SEQ) % (MAX_SEQ + 1);
 	
-		s = new Frame(fk, frameNum, fe/*(frameExpected + MAX_SEQ) % (MAX_SEQ + 1)*/, data);
+		s = new Frame(fk, frameNum, fe, data);
 		
 		if(fk.equals(Frame.NAK) )
 			noNak = false;
@@ -77,7 +87,7 @@ public class Protocol6 implements Runnable{
 		{
 			physicalLayer.setOutputStream(s);
 			System.out.println("resending Sent Frame: " + s);
-			//System.out.println("Sent Frame: " + s);
+			
 		}
 		else
 		{
@@ -97,7 +107,7 @@ public class Protocol6 implements Runnable{
 		nextFrameToSend = 0;
 		frameExpected = 0;
 		oldestFrame = 0;
-		int nBuffered = 0;
+		nBuffered = 0;
 		int ackExpected = 0;
 		int tooFar = BUFF_SIZE;
 		
@@ -110,12 +120,18 @@ public class Protocol6 implements Runnable{
 			arrived[i] = false;
 		
 		System.out.println("Starting Protocol6 (Client)");
+		startTime = System.currentTimeMillis();
+		networkLayer.start();
+		long endTime = 0;
 		while(true)
 		{
+			long waitStart = System.currentTimeMillis();
 			int event = getEvent();
+			totalTime += System.currentTimeMillis() - waitStart;
 			
 			if(event == -1)
 			{
+				endTime = System.currentTimeMillis();
 				for(int i = 0; i  < timers.length; i++)
 					stopTimer(i);
 				break;
@@ -128,7 +144,6 @@ public class Protocol6 implements Runnable{
 					outBuff[nextFrameToSend % BUFF_SIZE] = new BuffData(data);
 					sendData(Frame.DATA, nextFrameToSend, frameExpected, outBuff);
 					nextFrameToSend = inc(nextFrameToSend);
-					System.out.println("Next frame to send: " + nextFrameToSend);
 					
 					break;
 				case 2: //Frame arrival
@@ -137,13 +152,13 @@ public class Protocol6 implements Runnable{
 					System.out.println("Recieved: " + r);
 					if(r.getKind().equals(Frame.DATA))
 					{
-						/*
+						
 						if( (r.getSeq() != frameExpected) && noNak)
-							sendData(Frame.NAK, r.getSeq(), frameExpected, outBuff[r.getSeq()].getBuff());
-						else
+							sendData(Frame.NAK, r.getSeq(), frameExpected, outBuff/*outBuff[r.getSeq()].getBuff()*/);
+						/*else
 							System.out.println("Start Ack Timer arrived:" + arrived[r.getSeq() % BUFF_SIZE]);*/
 						
-						/*
+						
 						if(inBetween(frameExpected, r.getSeq(), tooFar) && (arrived[r.getSeq() % BUFF_SIZE] == false) )
 						{
 							arrived[r.getSeq() % BUFF_SIZE] = true;
@@ -159,7 +174,7 @@ public class Protocol6 implements Runnable{
 							}
 							
 						}
-						*/
+						
 						
 						
 						
@@ -174,11 +189,10 @@ public class Protocol6 implements Runnable{
 					
 					while(inBetween(ackExpected, r.getAck(), nextFrameToSend))
 					{
-						//System.out.println("stopping timer");
 						nBuffered -= 1;
 						stopTimer(ackExpected);
 						ackExpected = inc(ackExpected);
-						//oldestFrame = inc(oldestFrame);
+						
 					}
 					
 					break;
@@ -200,6 +214,9 @@ public class Protocol6 implements Runnable{
 				networkLayer.disableLayer();
 			
 		}
+		this.executionTime += (endTime - startTime);
+		System.out.println("Time took to complete protocol in milliseconds: " + executionTime + " Time in idle: " + totalTime);
+		
 		
 		
 	}
@@ -218,10 +235,13 @@ public class Protocol6 implements Runnable{
 		return value;
 	}
 	
+	/**
+	 * Creates and starts the timer for a specific frame. When
+	 * interrupt is set the seq number is sent to the timeout queue. 
+	 * @param seq The seq number you want to set timer for. 
+	 */
 	public void setTimer(int seq)
 	{
-		//int seq = realSeq % BUFF_SIZE;
-		//System.out.println("Setting timer for: " + seq);
 		Thread currThread = Thread.currentThread();
 		Thread t =  new Thread(new Runnable(){
 
@@ -231,17 +251,14 @@ public class Protocol6 implements Runnable{
 			public void run() {
 				// TODO Auto-generated method stub
 				try {
-					Thread.sleep(2000);
+					Thread.sleep(50);
 					timeouts.enqueue(s);
 					curr.interrupt();
-					
-					//System.out.println("timeout: " + seq);
 					
 					
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
-					//e.printStackTrace();
-					//System.out.println("Interrupted: " + seq);
+					
 				}
 				
 			}
@@ -250,12 +267,10 @@ public class Protocol6 implements Runnable{
 		
 		if(timers[seq] == null)
 		{
-			System.out.println("Not overriding");
 			timers[seq ] = t;
 		}
 		else
 		{
-			System.out.println("Overriding other timer");
 			
 			
 			timers[seq].interrupt();
@@ -273,9 +288,13 @@ public class Protocol6 implements Runnable{
 		//???
 	}
 	
+	
+	/**
+	 * Stops a timer for a specific frame
+	 * @param seq frame number you want to remove timer for
+	 */
 	public void stopTimer(int seq)
 	{
-		//int seq = s % BUFF_SIZE;
 		if(timers.length < seq)
 		{
 			System.out.println("seq: " + seq + " not found");
@@ -287,6 +306,12 @@ public class Protocol6 implements Runnable{
 		timers[seq] = null;
 	}
 	
+	/**
+	 * Returns an event depending on the flags that are raised. 
+	 * @return 1 if the network layer has data. 2 if physical layer has
+	 * data. 4 if a frame got timed out. -1 indicating that the protocol should
+	 * terminate itself. 
+	 */
 	private int getEvent()
 	{
 		while(true)
@@ -299,6 +324,8 @@ public class Protocol6 implements Runnable{
 			else if(Thread.currentThread().interrupted())
 				return 4;
 			else if(!physicalLayer.isConnected())
+				return -1;
+			else if(networkLayer.isFinished() && nBuffered == 0)
 				return -1;
 			
 		}

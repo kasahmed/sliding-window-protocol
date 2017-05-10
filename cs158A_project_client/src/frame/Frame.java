@@ -47,7 +47,7 @@ public class Frame implements Serializable
 	public String toString() {
 		// TODO Auto-generated method stub
 		
-		String message = new String(buff,  Charset.forName("UTF-8"));//Arrays.toString(buff);
+		String message = new String(buff,  Charset.forName("UTF-8"));
 		return "[Frame: seq: " + seq + " ack: " +  ack + " Kind: " + kind + " Message: " + message + "]";
 	}
 	

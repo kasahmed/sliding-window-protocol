@@ -9,8 +9,8 @@ import server.Networking;
 
 public class Protocol6 implements Runnable{
 
-	final int MAX_SEQ = 3;
-	final int BUFF_SIZE = ((MAX_SEQ + 1) / 2);
+	int MAX_SEQ = 3;
+	int BUFF_SIZE = ((MAX_SEQ + 1) / 2);
 	
 	
 	int nextFrameToSend;
@@ -18,12 +18,17 @@ public class Protocol6 implements Runnable{
 	boolean noNak = true;
 	Networking physicalLayer;
 	NetworkLayer networkLayer;
-	Thread[] timers = new Thread[BUFF_SIZE + 1];
+	Thread[] timers; 
 	Thread ackTimer;
 	boolean ackTimeout = false;
 	
-	public Protocol6(Networking physicalLayer)
+	public Protocol6(Networking physicalLayer, int maxSeq)
 	{
+		this.MAX_SEQ = maxSeq;
+		BUFF_SIZE = ((MAX_SEQ + 1) / 2);
+		
+		timers = new Thread[MAX_SEQ + 1];
+		
 		this.physicalLayer = physicalLayer;
 		
 		this.run();
@@ -39,7 +44,6 @@ public class Protocol6 implements Runnable{
 			noNak = false;
 		
 		physicalLayer.setOutputStream(s);
-		//System.out.println("Sent: " + s);
 		
 		if(fk.equals(Frame.DATA))
 			setTimer(frameNum % BUFF_SIZE);
@@ -81,7 +85,7 @@ public class Protocol6 implements Runnable{
 					nBuffered += 1;
 					byte[] data = networkLayer.getData();
 					outBuff[nextFrameToSend % BUFF_SIZE] = new BuffData(data);
-					sendData(Frame.ACK, nextFrameToSend, frameExpected, data);
+					sendData(Frame.DATA, nextFrameToSend, frameExpected, data);
 					nextFrameToSend = inc(nextFrameToSend);
 					break;
 				case 2: //Frame arrival
@@ -92,11 +96,9 @@ public class Protocol6 implements Runnable{
 						
 						if( (r.getSeq() != frameExpected) && noNak) {
 							sendData(Frame.NAK, 0, frameExpected, r.getBuff());
-							System.out.println("Error with frame r.seq: " + r.getSeq() + " Expected: " + frameExpected);
+							//System.out.println("Error with frame r.seq: " + r.getSeq() + " Expected: " + frameExpected);
 						}
 							
-						/*else
-							System.out.println("Start Ack Timer");*/
 							
 						
 						if(inBetween(frameExpected, r.getSeq(), tooFar) && (arrived[r.getSeq() % BUFF_SIZE]) == false)
@@ -175,6 +177,11 @@ public class Protocol6 implements Runnable{
 		return value;
 	}
 	
+	/**
+	 * Creates and starts the timer for a specific frame. When
+	 * interrupt is set the seq number is sent to the timeout queue. 
+	 * @param seq The seq number you want to set timer for. 
+	 */
 	public void setTimer(int seq)
 	{
 		//System.out.println("Setting timer for: " + seq);
@@ -218,15 +225,27 @@ public class Protocol6 implements Runnable{
 	}
 	
 	
-	
+	/**
+	 * Stops a timer for a specific frame
+	 * @param seq frame number you want to remove timer for
+	 */
 	public void stopTimer(int seq)
 	{
 		if(timers.length < seq)
+			return;
+		
+		if(timers[seq] == null)
 			return;
 		timers[seq].interrupt();
 		timers[seq] = null;
 	}
 	
+	/**
+	 * Returns an event depending on the flags that are raised. 
+	 * @return 1 if the network layer has data. 2 if physical layer has
+	 * data. 4 if a frame got timed out. -1 indicating that the protocol should
+	 * terminate itself. 
+	 */
 	private int getEvent()
 	{
 		
